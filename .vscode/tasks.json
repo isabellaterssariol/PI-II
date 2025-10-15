@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Compilar jogo",
+      "type": "shell",
+      "command": "g++",
+      "args": [
+        "src/main.c",
+        "-DALLEGRO_STATICLINK",
+        "-o",
+        "${workspaceFolder}/jogo.exe",
+        "-I",
+        "C:/vcpkg/installed/x64-windows/include",
+        "-L",
+        "C:/vcpkg/installed/x64-windows/lib",
+        "-lallegro",
+        "-lallegro_main",
+        "-lallegro_image",
+        "-lallegro_font",
+        "-lallegro_ttf",
+        "-lallegro_primitives",
+        "-lallegro_audio",
+        "-lallegro_acodec"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

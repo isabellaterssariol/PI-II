@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Executar Jogo",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/jogo.exe",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    }
+  ]
+}
