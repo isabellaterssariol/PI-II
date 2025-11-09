@@ -2,12 +2,12 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Compilar e Rodar Jogo",
+      "label": "Compilar e Rodar Jogo (cmd)",
       "type": "shell",
       "command": "cmd.exe",
       "args": [
         "/c",
-        "C:\\Users\\fernando.castilho\\Documents\\Projetos\\mingw64\\bin\\g++.exe src/main.c -DALLEGRO_STATICLINK -I C:/vcpkg/installed/x64-windows/include -L C:/vcpkg/installed/x64-windows/lib -lallegro -lallegro_main -lallegro_image -lallegro_font -lallegro_ttf -lallegro_primitives -lallegro_audio -lallegro_acodec -o ${workspaceFolder}/jogo.exe && ${workspaceFolder}/jogo.exe"
+        "C:\\msys64\\mingw64\\bin\\gcc.exe src/main.c -o ${workspaceFolder}\\jogo.exe -I C:/msys64/mingw64/include -L C:/msys64/mingw64/lib -lallegro -lallegro_main -lallegro_image -lallegro_font -lallegro_ttf -lallegro_primitives -lallegro_dialog && ${workspaceFolder}\\jogo.exe"
       ],
       "group": {
         "kind": "build",
