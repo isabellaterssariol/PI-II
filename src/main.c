@@ -47,14 +47,21 @@ int main(void)
     float vel_y = 0;
     bool on_ground = true;
     bool pulando = false, andando = false;
+    bool facing_left = false;
 
     const float VELOCIDADE = 4.0f;
     const float GRAVIDADE = 0.6f;
     const float FORCA_PULO = -12.0f;
 
+    // ALTURA DO CHÃO (topo da grama/terra) MEDIDAS REAIS
+    const float CHAO_FASE1 = 770.0f;
+    const float CHAO_FASE2 = 820.0f;
+    const float CHAO_FASE3 = 730.0f;
+    const float OFFSET_PES = 5.0f;
+
     double fase_start_time = 0;
     double ultimo_clique = 0;
-    const double TEMPO_DEBOUNCE = 0.3; // segundos mínimos entre cliques
+    const double TEMPO_DEBOUNCE = 0.3;
 
     // === Inicialização Allegro ===
     if (!al_init())
@@ -131,55 +138,37 @@ int main(void)
         ALLEGRO_EVENT ev;
         al_wait_for_event(event_queue, &ev);
 
-        // Fechar janela
         if (ev.type == ALLEGRO_EVENT_DISPLAY_CLOSE)
-        {
             running = false;
-        }
 
-        // ===== MENU PRINCIPAL =====
+        // ===== MENU =====
         else if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN && state == MENU)
         {
             int x_mouse = ev.mouse.x;
             int y_mouse = ev.mouse.y;
 
-            // Botão JOGAR
             if (x_mouse > 510 && x_mouse < 1025 && y_mouse > 396 && y_mouse < 490)
             {
                 state = FASE1_CTX1;
                 ultimo_clique = al_get_time();
-                redraw = true;
             }
-            // Botão INSTRUÇÕES
             else if (x_mouse > 510 && x_mouse < 1025 && y_mouse > 556 && y_mouse < 651)
-            {
                 state = INSTRUCOES;
-                redraw = true;
-            }
-            // Botão SAIR
             else if (x_mouse > 510 && x_mouse < 1025 && y_mouse > 719 && y_mouse < 805)
-            {
                 state = SAIR;
-            }
         }
 
-        // ===== BOTÃO SAIR =====
         else if (state == SAIR)
-        {
             running = false;
-        }
 
-        // ===== INSTRUÇÕES =====
         else if (state == INSTRUCOES)
         {
             if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN ||
                 (ev.type == ALLEGRO_EVENT_KEY_DOWN && ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE))
-            {
                 state = MENU;
-            }
         }
 
-        // ======== CONTEXTOS COM DEBOUNCE ========
+        // ===== CONTEXTOS (com debounce) =====
         double agora = al_get_time();
 
         if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN && (agora - ultimo_clique > TEMPO_DEBOUNCE))
@@ -192,8 +181,8 @@ int main(void)
             {
                 state = FASE1;
                 fase_start_time = al_get_time();
-                x = 400;
-                y = 450;
+                x = 50;
+                y = CHAO_FASE1 + OFFSET_PES;
                 vel_y = 0;
                 on_ground = true;
                 pulando = false;
@@ -205,8 +194,8 @@ int main(void)
             {
                 state = FASE2;
                 fase_start_time = al_get_time();
-                x = 400;
-                y = 795;
+                x = 50;
+                y = CHAO_FASE2 + OFFSET_PES;
                 vel_y = 0;
                 on_ground = true;
                 pulando = false;
@@ -218,24 +207,12 @@ int main(void)
             {
                 state = FASE3;
                 fase_start_time = al_get_time();
-                x = 400;
-                y = 450;
+                x = 50;
+                y = CHAO_FASE3 + OFFSET_PES;
                 vel_y = 0;
                 on_ground = true;
                 pulando = false;
                 andando = false;
-            }
-        }
-
-        // ===== MENU FINAL =====
-        else if (state == MENU_FINAL)
-        {
-            if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN)
-            {
-                int x_mouse = ev.mouse.x;
-                int y_mouse = ev.mouse.y;
-                if (x_mouse > 603 && x_mouse < 927 && y_mouse > 722 && y_mouse < 857)
-                    state = MENU;
             }
         }
 
@@ -247,10 +224,19 @@ int main(void)
                 switch (ev.keyboard.keycode)
                 {
                 case ALLEGRO_KEY_A:
-                case ALLEGRO_KEY_D:
+                case ALLEGRO_KEY_LEFT:
                     andando = true;
+                    facing_left = true;
                     break;
+
+                case ALLEGRO_KEY_D:
+                case ALLEGRO_KEY_RIGHT:
+                    andando = true;
+                    facing_left = false;
+                    break;
+
                 case ALLEGRO_KEY_W:
+                case ALLEGRO_KEY_UP:
                     if (on_ground)
                     {
                         vel_y = FORCA_PULO;
@@ -258,6 +244,7 @@ int main(void)
                         pulando = true;
                     }
                     break;
+
                 case ALLEGRO_KEY_ESCAPE:
                     state = MENU;
                     break;
@@ -266,8 +253,13 @@ int main(void)
         }
         else if (ev.type == ALLEGRO_EVENT_KEY_UP)
         {
-            if (ev.keyboard.keycode == ALLEGRO_KEY_A || ev.keyboard.keycode == ALLEGRO_KEY_D)
+            if (ev.keyboard.keycode == ALLEGRO_KEY_A ||
+                ev.keyboard.keycode == ALLEGRO_KEY_D ||
+                ev.keyboard.keycode == ALLEGRO_KEY_LEFT ||
+                ev.keyboard.keycode == ALLEGRO_KEY_RIGHT)
+            {
                 andando = false;
+            }
         }
 
         // ===== LÓGICA DAS FASES =====
@@ -278,12 +270,15 @@ int main(void)
                 ALLEGRO_KEYBOARD_STATE key_state;
                 al_get_keyboard_state(&key_state);
 
-                // Movimento horizontal
+                // Movimento horizontal contínuo
                 if (andando)
                 {
-                    if (al_key_down(&key_state, ALLEGRO_KEY_A))
+                    if (al_key_down(&key_state, ALLEGRO_KEY_A) ||
+                        al_key_down(&key_state, ALLEGRO_KEY_LEFT))
                         x -= VELOCIDADE;
-                    if (al_key_down(&key_state, ALLEGRO_KEY_D))
+
+                    if (al_key_down(&key_state, ALLEGRO_KEY_D) ||
+                        al_key_down(&key_state, ALLEGRO_KEY_RIGHT))
                         x += VELOCIDADE;
                 }
 
@@ -294,11 +289,16 @@ int main(void)
                     y += vel_y;
                 }
 
-                // ===== LIMITES E CHÃO =====
-                float chao_y = (state == FASE2) ? 795.0f : 450.0f;
-                if (y >= chao_y)
+                // ===== LIMITES E CHÃO por fase =====
+                float chao_y = CHAO_FASE1;
+                if (state == FASE2)
+                    chao_y = CHAO_FASE2;
+                else if (state == FASE3)
+                    chao_y = CHAO_FASE3;
+
+                if (y >= chao_y + OFFSET_PES)
                 {
-                    y = chao_y;
+                    y = chao_y + OFFSET_PES;
                     vel_y = 0;
                     on_ground = true;
                     pulando = false;
@@ -310,7 +310,7 @@ int main(void)
                 if (x > 1400)
                     x = 1400;
 
-                // ===== TROCA AUTOMÁTICA =====
+                // Troca automática (10s) -> vai para contexto da próxima fase
                 double elapsed = al_get_time() - fase_start_time;
                 if (elapsed >= 10.0)
                 {
@@ -325,7 +325,7 @@ int main(void)
                     pulando = false;
                     on_ground = true;
                     vel_y = 0;
-                    ultimo_clique = al_get_time();
+                    ultimo_clique = al_get_time(); // evita pular dois contextos
                 }
 
                 redraw = true;
@@ -361,7 +361,8 @@ int main(void)
             else
             {
                 ALLEGRO_BITMAP *fundo =
-                    (state == FASE1) ? fase1_img : (state == FASE2) ? fase2_img : fase3_img;
+                    (state == FASE1) ? fase1_img : (state == FASE2) ? fase2_img
+                                                                    : fase3_img;
                 al_draw_bitmap(fundo, 0, 0, 0);
 
                 // Sprite do boneco
@@ -375,9 +376,12 @@ int main(void)
                 float largura = al_get_bitmap_width(sprite) * escala;
                 float altura = al_get_bitmap_height(sprite) * escala;
 
-                al_draw_scaled_bitmap(sprite, 0, 0,
-                al_get_bitmap_width(sprite), al_get_bitmap_height(sprite),
-                x, y - altura, largura, altura, 0);
+                int flags = facing_left ? ALLEGRO_FLIP_HORIZONTAL : 0;
+
+                al_draw_scaled_bitmap(
+                    sprite, 0, 0,
+                    al_get_bitmap_width(sprite), al_get_bitmap_height(sprite),
+                    x, y - altura, largura, altura, flags);
             }
 
             al_flip_display();
@@ -388,18 +392,15 @@ int main(void)
     al_destroy_bitmap(menu_img);
     al_destroy_bitmap(instr_img);
     al_destroy_bitmap(menu_final_img);
-
     al_destroy_bitmap(fase1_ctx1_img);
     al_destroy_bitmap(fase1_ctx2_img);
     al_destroy_bitmap(fase2_ctx1_img);
     al_destroy_bitmap(fase2_ctx2_img);
     al_destroy_bitmap(fase3_ctx1_img);
     al_destroy_bitmap(fase3_ctx2_img);
-
     al_destroy_bitmap(fase1_img);
     al_destroy_bitmap(fase2_img);
     al_destroy_bitmap(fase3_img);
-
     al_destroy_bitmap(boneco_padrao);
     al_destroy_bitmap(boneco_correndo);
     al_destroy_bitmap(boneco_pulando);
