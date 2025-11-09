@@ -53,6 +53,8 @@ int main(void)
     const float FORCA_PULO = -12.0f;
 
     double fase_start_time = 0;
+    double ultimo_clique = 0;
+    const double TEMPO_DEBOUNCE = 0.3; // segundos mínimos entre cliques
 
     // === Inicialização Allegro ===
     if (!al_init())
@@ -144,21 +146,27 @@ int main(void)
             // Botão JOGAR
             if (x_mouse > 510 && x_mouse < 1025 && y_mouse > 396 && y_mouse < 490)
             {
-                state = FASE1_CTX1; // começa pelo contexto 1 da fase 1
+                state = FASE1_CTX1;
+                ultimo_clique = al_get_time();
                 redraw = true;
             }
             // Botão INSTRUÇÕES
-            if (x_mouse > 510 && x_mouse < 1025 && y_mouse > 556 && y_mouse < 651)
+            else if (x_mouse > 510 && x_mouse < 1025 && y_mouse > 556 && y_mouse < 651)
             {
                 state = INSTRUCOES;
                 redraw = true;
             }
             // Botão SAIR
-            if (x_mouse > 510 && x_mouse < 1025 && y_mouse > 719 && y_mouse < 805)
+            else if (x_mouse > 510 && x_mouse < 1025 && y_mouse > 719 && y_mouse < 805)
             {
                 state = SAIR;
-                redraw = true;
             }
+        }
+
+        // ===== BOTÃO SAIR =====
+        else if (state == SAIR)
+        {
+            running = false;
         }
 
         // ===== INSTRUÇÕES =====
@@ -171,23 +179,16 @@ int main(void)
             }
         }
 
-        // ===== CONTEXTOS — FASE 1 =====
-        else if (state == FASE1_CTX1)
+        // ======== CONTEXTOS COM DEBOUNCE ========
+        double agora = al_get_time();
+
+        if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN && (agora - ultimo_clique > TEMPO_DEBOUNCE))
         {
-            if ((ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN) ||
-                (ev.type == ALLEGRO_EVENT_KEY_DOWN &&
-                 (ev.keyboard.keycode == ALLEGRO_KEY_ENTER || ev.keyboard.keycode == ALLEGRO_KEY_SPACE)))
-            {
+            ultimo_clique = agora;
+
+            if (state == FASE1_CTX1)
                 state = FASE1_CTX2;
-            }
-            if (ev.type == ALLEGRO_EVENT_KEY_DOWN && ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE)
-                state = MENU;
-        }
-        else if (state == FASE1_CTX2)
-        {
-            if ((ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN) ||
-                (ev.type == ALLEGRO_EVENT_KEY_DOWN &&
-                 (ev.keyboard.keycode == ALLEGRO_KEY_ENTER || ev.keyboard.keycode == ALLEGRO_KEY_SPACE)))
+            else if (state == FASE1_CTX2)
             {
                 state = FASE1;
                 fase_start_time = al_get_time();
@@ -198,27 +199,9 @@ int main(void)
                 pulando = false;
                 andando = false;
             }
-            if (ev.type == ALLEGRO_EVENT_KEY_DOWN && ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE)
-                state = MENU;
-        }
-
-        // ===== CONTEXTOS — FASE 2 =====
-        else if (state == FASE2_CTX1)
-        {
-            if ((ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN) ||
-                (ev.type == ALLEGRO_EVENT_KEY_DOWN &&
-                 (ev.keyboard.keycode == ALLEGRO_KEY_ENTER || ev.keyboard.keycode == ALLEGRO_KEY_SPACE)))
-            {
+            else if (state == FASE2_CTX1)
                 state = FASE2_CTX2;
-            }
-            if (ev.type == ALLEGRO_EVENT_KEY_DOWN && ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE)
-                state = MENU;
-        }
-        else if (state == FASE2_CTX2)
-        {
-            if ((ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN) ||
-                (ev.type == ALLEGRO_EVENT_KEY_DOWN &&
-                 (ev.keyboard.keycode == ALLEGRO_KEY_ENTER || ev.keyboard.keycode == ALLEGRO_KEY_SPACE)))
+            else if (state == FASE2_CTX2)
             {
                 state = FASE2;
                 fase_start_time = al_get_time();
@@ -229,27 +212,9 @@ int main(void)
                 pulando = false;
                 andando = false;
             }
-            if (ev.type == ALLEGRO_EVENT_KEY_DOWN && ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE)
-                state = MENU;
-        }
-
-        // ===== CONTEXTOS — FASE 3 =====
-        else if (state == FASE3_CTX1)
-        {
-            if ((ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN) ||
-                (ev.type == ALLEGRO_EVENT_KEY_DOWN &&
-                 (ev.keyboard.keycode == ALLEGRO_KEY_ENTER || ev.keyboard.keycode == ALLEGRO_KEY_SPACE)))
-            {
+            else if (state == FASE3_CTX1)
                 state = FASE3_CTX2;
-            }
-            if (ev.type == ALLEGRO_EVENT_KEY_DOWN && ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE)
-                state = MENU;
-        }
-        else if (state == FASE3_CTX2)
-        {
-            if ((ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN) ||
-                (ev.type == ALLEGRO_EVENT_KEY_DOWN &&
-                 (ev.keyboard.keycode == ALLEGRO_KEY_ENTER || ev.keyboard.keycode == ALLEGRO_KEY_SPACE)))
+            else if (state == FASE3_CTX2)
             {
                 state = FASE3;
                 fase_start_time = al_get_time();
@@ -260,8 +225,6 @@ int main(void)
                 pulando = false;
                 andando = false;
             }
-            if (ev.type == ALLEGRO_EVENT_KEY_DOWN && ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE)
-                state = MENU;
         }
 
         // ===== MENU FINAL =====
@@ -271,20 +234,12 @@ int main(void)
             {
                 int x_mouse = ev.mouse.x;
                 int y_mouse = ev.mouse.y;
-                // Botão VOLTAR AO MENU (ajustar conforme layout)
                 if (x_mouse > 603 && x_mouse < 927 && y_mouse > 722 && y_mouse < 857)
                     state = MENU;
             }
-            if (ev.type == ALLEGRO_EVENT_KEY_DOWN && ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE)
-                state = MENU;
-        }
-        // ===== BOTÃO SAIR =====
-        else if (state == SAIR)
-        {
-            running = false; // encerra o jogo imediatamente
         }
 
-        // ===== CONTROLE DE MOVIMENTO (somente dentro das fases) =====
+        // ===== CONTROLE DE MOVIMENTO =====
         else if (ev.type == ALLEGRO_EVENT_KEY_DOWN)
         {
             if (state == FASE1 || state == FASE2 || state == FASE3)
@@ -340,8 +295,7 @@ int main(void)
                 }
 
                 // ===== LIMITES E CHÃO =====
-                float chao_y =
-                    (state == FASE2) ? 795.0f : 450.0f; // Fase 2 tem chão mais baixo conforme seu código
+                float chao_y = (state == FASE2) ? 795.0f : 450.0f;
                 if (y >= chao_y)
                 {
                     y = chao_y;
@@ -356,42 +310,28 @@ int main(void)
                 if (x > 1400)
                     x = 1400;
 
-                // ===== TROCA AUTOMÁTICA (10s) =====
+                // ===== TROCA AUTOMÁTICA =====
                 double elapsed = al_get_time() - fase_start_time;
                 if (elapsed >= 10.0)
                 {
                     if (state == FASE1)
-                        state = FASE2_CTX1; // vai para contexto da próxima fase
+                        state = FASE2_CTX1;
                     else if (state == FASE2)
                         state = FASE3_CTX1;
                     else if (state == FASE3)
                         state = MENU_FINAL;
 
-                    if (state == FASE2_CTX1 || state == FASE3_CTX1 || state == MENU_FINAL)
-                    {
-                        // não iniciar timer/posição aqui; só quando entrar na fase
-                        // ainda assim, reposiciona boneco para o início da próxima fase quando ela começar
-                    }
-                    else
-                    {
-                        // nada
-                    }
-
-                    fase_start_time = al_get_time(); // zera contagem p/ próxima tela (não faz mal no contexto)
-                    // Reseta flags de movimento quando sair da fase
                     andando = false;
                     pulando = false;
                     on_ground = true;
                     vel_y = 0;
+                    ultimo_clique = al_get_time();
                 }
 
                 redraw = true;
             }
             else
-            {
-                // em telas não jogáveis, apenas pedir redraw para mostrar os bitmaps
                 redraw = true;
-            }
         }
 
         // ===== DESENHO =====
@@ -401,51 +341,30 @@ int main(void)
             al_clear_to_color(al_map_rgb(0, 0, 0));
 
             if (state == MENU)
-            {
                 al_draw_bitmap(menu_img, 0, 0, 0);
-            }
             else if (state == INSTRUCOES)
-            {
                 al_draw_bitmap(instr_img, 0, 0, 0);
-            }
             else if (state == MENU_FINAL)
-            {
                 al_draw_bitmap(menu_final_img, 0, 0, 0);
-            }
             else if (state == FASE1_CTX1)
-            {
                 al_draw_bitmap(fase1_ctx1_img, 0, 0, 0);
-            }
             else if (state == FASE1_CTX2)
-            {
                 al_draw_bitmap(fase1_ctx2_img, 0, 0, 0);
-            }
             else if (state == FASE2_CTX1)
-            {
                 al_draw_bitmap(fase2_ctx1_img, 0, 0, 0);
-            }
             else if (state == FASE2_CTX2)
-            {
                 al_draw_bitmap(fase2_ctx2_img, 0, 0, 0);
-            }
             else if (state == FASE3_CTX1)
-            {
                 al_draw_bitmap(fase3_ctx1_img, 0, 0, 0);
-            }
             else if (state == FASE3_CTX2)
-            {
                 al_draw_bitmap(fase3_ctx2_img, 0, 0, 0);
-            }
             else
             {
-                // FASE1 / FASE2 / FASE3
                 ALLEGRO_BITMAP *fundo =
-                    (state == FASE1) ? fase1_img : (state == FASE2) ? fase2_img
-                                                                    : fase3_img;
-
+                    (state == FASE1) ? fase1_img : (state == FASE2) ? fase2_img : fase3_img;
                 al_draw_bitmap(fundo, 0, 0, 0);
 
-                // Sprite do boneco (apenas nas fases)
+                // Sprite do boneco
                 ALLEGRO_BITMAP *sprite = boneco_padrao;
                 if (pulando)
                     sprite = boneco_pulando;
@@ -456,11 +375,9 @@ int main(void)
                 float largura = al_get_bitmap_width(sprite) * escala;
                 float altura = al_get_bitmap_height(sprite) * escala;
 
-                al_draw_scaled_bitmap(
-                    sprite,
-                    0, 0,
-                    al_get_bitmap_width(sprite), al_get_bitmap_height(sprite),
-                    x, y - altura, largura, altura, 0);
+                al_draw_scaled_bitmap(sprite, 0, 0,
+                al_get_bitmap_width(sprite), al_get_bitmap_height(sprite),
+                x, y - altura, largura, altura, 0);
             }
 
             al_flip_display();
@@ -486,7 +403,6 @@ int main(void)
     al_destroy_bitmap(boneco_padrao);
     al_destroy_bitmap(boneco_correndo);
     al_destroy_bitmap(boneco_pulando);
-
     al_destroy_timer(timer);
     al_destroy_event_queue(event_queue);
     al_destroy_display(display);
