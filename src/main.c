@@ -1,5 +1,3 @@
-// jogo.c — Allegro 5 com contextos, avanço 10s e obstáculos nas 3 fases
-
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_image.h>
 #include <allegro5/allegro_primitives.h>
@@ -23,11 +21,11 @@ typedef enum
     FASE1,
     FASE2,
     FASE3,
+    QUIZ,
     MORRENDO,
     MENU_FINAL
 } GameState;
 
-// Obstáculos
 typedef struct
 {
     float x, y, w, h;
@@ -49,7 +47,7 @@ void limpa_obstaculos(Obstaculo obs[], int max)
         obs[i].ativo = 0;
 }
 
-void cria_obstaculo(Obstaculo *o, ALLEGRO_BITMAP *b1, ALLEGRO_BITMAP *b2, ALLEGRO_BITMAP *b3, ALLEGRO_BITMAP *b4, float CHAO_Y, float OFFSET_PES)
+void cria_obstaculo(Obstaculo *o, ALLEGRO_BITMAP *b1, ALLEGRO_BITMAP *b2, ALLEGRO_BITMAP *b3, ALLEGRO_BITMAP *b4, float CHAO_Y, float OFFSET_PES, float levantar_px)
 {
     int tipo = rand() % 4;
     ALLEGRO_BITMAP *bmp = (tipo == 0 ? b1 : tipo == 1 ? b2 : tipo == 2   ? b3 : b4);
@@ -64,23 +62,22 @@ void cria_obstaculo(Obstaculo *o, ALLEGRO_BITMAP *b1, ALLEGRO_BITMAP *b2, ALLEGR
     o->h = alvo_h;
 
     o->x = 1536.0f + 10.0f;
-    o->y = (CHAO_Y + OFFSET_PES) - o->h - 15;
+    o->y = (CHAO_Y + OFFSET_PES) - o->h - 15 - levantar_px;
     o->vx = 5.0f + (float)(rand() % 25) / 10.0f;
     o->ativo = 1;
 }
 
-void spawn_forcado(Obstaculo obs[], int max,
-ALLEGRO_BITMAP *b1, ALLEGRO_BITMAP *b2, ALLEGRO_BITMAP *b3, ALLEGRO_BITMAP *b4, float CHAO_Y, float OFFSET_PES)
+void spawn_forcado(Obstaculo obs[], int max, ALLEGRO_BITMAP *b1, ALLEGRO_BITMAP *b2, ALLEGRO_BITMAP *b3, ALLEGRO_BITMAP *b4, float CHAO_Y, float OFFSET_PES, float levantar_px)
 {
     for (int i = 0; i < max; i++)
     {
         if (!obs[i].ativo)
         {
-            cria_obstaculo(&obs[i], b1, b2, b3, b4, CHAO_Y, OFFSET_PES);
+            cria_obstaculo(&obs[i], b1, b2, b3, b4, CHAO_Y, OFFSET_PES, levantar_px);
             return;
         }
     }
-    cria_obstaculo(&obs[0], b1, b2, b3, b4, CHAO_Y, OFFSET_PES);
+    cria_obstaculo(&obs[0], b1, b2, b3, b4, CHAO_Y, OFFSET_PES, levantar_px);
 }
 
 void desenha_obstaculo(const Obstaculo *o)
@@ -108,15 +105,17 @@ int main(void)
     al_init_font_addon();
     al_init_ttf_addon();
 
-    ALLEGRO_DISPLAY *display = al_create_display(1536, 1024);
+    const int LARG = 1536, ALT = 1024;
+
+    ALLEGRO_DISPLAY *display = al_create_display(LARG, ALT);
     if (!display)
     {
-        printf("Erro ao criar display!\n");
+        printf("Erro display!\n");
         return -1;
     }
+
     ALLEGRO_TIMER *timer = al_create_timer(1.0 / 60.0);
     ALLEGRO_EVENT_QUEUE *event_queue = al_create_event_queue();
-
     srand((unsigned int)time(NULL));
 
     // Imagens
@@ -140,23 +139,46 @@ int main(void)
     ALLEGRO_BITMAP *boneco_pulando = al_load_bitmap("assets/imagens/boneco_pulando.png");
     ALLEGRO_BITMAP *boneco_morrendo = al_load_bitmap("assets/imagens/boneco_morrendo.png");
 
-    // Obstáculos FASE 1 (matemática)
+    // ---- Obstáculos ----
+    // Fase 1
     ALLEGRO_BITMAP *obs_plus = al_load_bitmap("assets/imagens/obstaculo_mais.png");
     ALLEGRO_BITMAP *obs_minus = al_load_bitmap("assets/imagens/obstaculo_menos.png");
     ALLEGRO_BITMAP *obs_mult = al_load_bitmap("assets/imagens/obstaculo_multiplicacao.png");
     ALLEGRO_BITMAP *obs_div = al_load_bitmap("assets/imagens/obstaculo_divisao.png");
-
-    // Obstáculos FASE 2 (biologia)
+    // Fase 2
     ALLEGRO_BITMAP *obs_atomo = al_load_bitmap("assets/imagens/obstaculo_atomo.png");
     ALLEGRO_BITMAP *obs_balao = al_load_bitmap("assets/imagens/obstaculo_balao.png");
     ALLEGRO_BITMAP *obs_genetica = al_load_bitmap("assets/imagens/obstaculo_genetica.png");
     ALLEGRO_BITMAP *obs_planta = al_load_bitmap("assets/imagens/obstaculo_planta.png");
-
-    // Obstáculos FASE 3 (física)
+    // Fase 3
     ALLEGRO_BITMAP *obs_einstein = al_load_bitmap("assets/imagens/obstaculo_einstein.png");
     ALLEGRO_BITMAP *obs_lampada = al_load_bitmap("assets/imagens/obstaculo_lampada.png");
     ALLEGRO_BITMAP *obs_maca = al_load_bitmap("assets/imagens/obstaculo_maca.png");
     ALLEGRO_BITMAP *obs_planeta = al_load_bitmap("assets/imagens/obstaculo_planeta.png");
+
+    // ---- QUIZ: Fase 1 ----
+    ALLEGRO_BITMAP *quiz1[4] = {
+        al_load_bitmap("assets/imagens/fase1_pergunta1.png"),
+        al_load_bitmap("assets/imagens/fase1_pergunta2.png"),
+        al_load_bitmap("assets/imagens/fase1_pergunta3.png"),
+        al_load_bitmap("assets/imagens/fase1_pergunta4.png")};
+    int quiz1_resp[4] = {0, 1, 1, 0}; // F,V,V,F
+
+    // ---- QUIZ: Fase 2 ----
+    ALLEGRO_BITMAP *quiz2[4] = {
+        al_load_bitmap("assets/imagens/fase2_pergunta1.png"),
+        al_load_bitmap("assets/imagens/fase2_pergunta2.png"),
+        al_load_bitmap("assets/imagens/fase2_pergunta3.png"),
+        al_load_bitmap("assets/imagens/fase2_pergunta4.png")};
+    int quiz2_resp[4] = {1, 0, 1, 0}; // V,F,V,F
+
+    // ---- QUIZ: Fase 3 ----
+    ALLEGRO_BITMAP *quiz3[4] = {
+        al_load_bitmap("assets/imagens/fase3_pergunta1.png"),
+        al_load_bitmap("assets/imagens/fase3_pergunta2.png"),
+        al_load_bitmap("assets/imagens/fase3_pergunta3.png"),
+        al_load_bitmap("assets/imagens/fase3_pergunta4.png")};
+    int quiz3_resp[4] = {1, 0, 1, 0}; // V,F,V,F
 
     if (!menu_img || !instr_img || !menu_final_img ||
         !fase1_ctx1_img || !fase1_ctx2_img ||
@@ -166,7 +188,10 @@ int main(void)
         !boneco_padrao || !boneco_correndo || !boneco_pulando || !boneco_morrendo ||
         !obs_plus || !obs_minus || !obs_mult || !obs_div ||
         !obs_atomo || !obs_balao || !obs_genetica || !obs_planta ||
-        !obs_einstein || !obs_lampada || !obs_maca || !obs_planeta)
+        !obs_einstein || !obs_lampada || !obs_maca || !obs_planeta ||
+        !quiz1[0] || !quiz1[1] || !quiz1[2] || !quiz1[3] ||
+        !quiz2[0] || !quiz2[1] || !quiz2[2] || !quiz2[3] ||
+        !quiz3[0] || !quiz3[1] || !quiz3[2] || !quiz3[3])
     {
         printf("Erro ao carregar imagens!\n");
         return -1;
@@ -178,28 +203,21 @@ int main(void)
     al_register_event_source(event_queue, al_get_timer_event_source(timer));
     al_start_timer(timer);
 
-    // Estado de jogo
     GameState state = MENU;
     bool running = true, redraw = true;
 
-    float x = 50, y = 770;
-    float vel_y = 0;
+    float x = 50, y = 770, vel_y = 0;
     bool on_ground = true, pulando = false, andando = false, facing_left = false;
 
-    const float VELOCIDADE = 4.0f;
-    const float GRAVIDADE = 0.6f;
-    const float FORCA_PULO = -14.0f;
+    const float VELOCIDADE = 4.0f, GRAVIDADE = 0.6f, FORCA_PULO = -14.0f;
 
-    const float CHAO_FASE1 = 770.0f;
-    const float CHAO_FASE2 = 820.0f;
-    const float CHAO_FASE3 = 730.0f;
-    const float OFFSET_PES = 5.0f;
+    const float CHAO_FASE1 = 770.0f, CHAO_FASE2 = 820.0f, CHAO_FASE3 = 730.0f, OFFSET_PES = 5.0f;
+    const float OBS_LEVANTAR = 8.0f;
 
     int fase_atual_render = 1;
 
     double fase_start_time = 0, ultimo_clique = 0;
-    const double TEMPO_DEBOUNCE = 0.3;
-    const double TEMPO_FASE = 10.0;
+    const double TEMPO_DEBOUNCE = 0.3, TEMPO_FASE = 10.0;
 
     Obstaculo obs[MAX_OBS] = {0};
     double proximo_spawn = 0.0;
@@ -207,6 +225,14 @@ int main(void)
 
     double morrendo_start = 0.0;
     const double TEMPO_MORRENDO = 3.0;
+
+    // QUIZ state + highlight
+    int quiz_indice = 0, quiz_correta = 0; // 0=F,1=V
+    double quiz_aberto_em = 0.0;
+    // Hitboxes (mesmas medidas passadas)
+    const int V_X = 141, V_Y = 244, V_W = 150, V_H = 47;
+    const int F_X = 323, F_Y = 243, F_W = 144, F_H = 48;
+    int quiz_hover_v = 0, quiz_hover_f = 0;
 
     while (running)
     {
@@ -216,7 +242,7 @@ int main(void)
         if (ev.type == ALLEGRO_EVENT_DISPLAY_CLOSE)
             running = false;
 
-        // MENU
+        // MENU -> clique
         else if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN && state == MENU)
         {
             int mx = ev.mouse.x, my = ev.mouse.y;
@@ -235,91 +261,156 @@ int main(void)
             }
         }
 
-        // SAIR
+        // MENU_FINAL -> clique no "reload" (vai pro MENU)
+        else if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN && state == MENU_FINAL)
+        {
+            int mx = ev.mouse.x, my = ev.mouse.y;
+            if (mx >= 601 && mx <= 937 && my >= 718 && my <= 858)
+            {
+                state = MENU;
+                limpa_obstaculos(obs, MAX_OBS);
+                andando = false;
+                pulando = false;
+                on_ground = true;
+                vel_y = 0;
+            }
+        }
+
         else if (state == SAIR)
         {
             running = false;
         }
 
-        // INSTRUÇÕES
         else if (state == INSTRUCOES)
         {
             if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN ||
                 (ev.type == ALLEGRO_EVENT_KEY_DOWN && ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE))
-            {
                 state = MENU;
-            }
         }
 
-        // CONTEXTOS (debounce clique)
-        double agora = al_get_time();
-        if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN && (agora - ultimo_clique > TEMPO_DEBOUNCE))
+        // QUIZ: mover mouse para highlight
+        else if (state == QUIZ && ev.type == ALLEGRO_EVENT_MOUSE_AXES)
         {
-            ultimo_clique = agora;
+            ALLEGRO_BITMAP *img =
+                (fase_atual_render == 1) ? quiz1[quiz_indice] : (fase_atual_render == 2) ? quiz2[quiz_indice]
+                                                                                         : quiz3[quiz_indice];
+            int iw = al_get_bitmap_width(img), ih = al_get_bitmap_height(img);
+            int draw_x = (LARG - iw) / 2, draw_y = (ALT - ih) / 2;
 
-            // FASE1
-            if (state == FASE1_CTX1)
-                state = FASE1_CTX2;
-            else if (state == FASE1_CTX2)
-            {
-                state = FASE1;
-                fase_atual_render = 1;
-                fase_start_time = al_get_time();
-                x = 50;
-                y = CHAO_FASE1 + OFFSET_PES;
-                vel_y = 0;
-                on_ground = true;
-                pulando = false;
-                andando = false;
-                facing_left = false;
-                limpa_obstaculos(obs, MAX_OBS);
-                spawn_forcado(obs, MAX_OBS, obs_plus, obs_minus, obs_mult, obs_div, CHAO_FASE1, OFFSET_PES);
-                proximo_spawn = al_get_time() + 1.5;
-            }
+            int lx = ev.mouse.x - draw_x;
+            int ly = ev.mouse.y - draw_y;
 
-            // FASE2
-            else if (state == FASE2_CTX1)
-                state = FASE2_CTX2;
-            else if (state == FASE2_CTX2)
-            {
-                state = FASE2;
-                fase_atual_render = 2;
-                fase_start_time = al_get_time();
-                x = 50;
-                y = CHAO_FASE2 + OFFSET_PES;
-                vel_y = 0;
-                on_ground = true;
-                pulando = false;
-                andando = false;
-                facing_left = false;
-                limpa_obstaculos(obs, MAX_OBS);
-                spawn_forcado(obs, MAX_OBS, obs_atomo, obs_balao, obs_genetica, obs_planta, CHAO_FASE2, OFFSET_PES);
-                proximo_spawn = al_get_time() + 1.5;
-            }
+            quiz_hover_v = (lx >= V_X && lx <= V_X + V_W && ly >= V_Y && ly <= V_Y + V_H);
+            quiz_hover_f = (lx >= F_X && lx <= F_X + F_W && ly >= F_Y && ly <= F_Y + F_H);
+            redraw = true;
+        }
 
-            // FASE3
-            else if (state == FASE3_CTX1)
-                state = FASE3_CTX2;
-            else if (state == FASE3_CTX2)
+        // QUIZ: clique
+        else if (state == QUIZ && ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN)
+        {
+            ALLEGRO_BITMAP *img =
+                (fase_atual_render == 1) ? quiz1[quiz_indice] : (fase_atual_render == 2) ? quiz2[quiz_indice]
+                                                                                         : quiz3[quiz_indice];
+            int iw = al_get_bitmap_width(img), ih = al_get_bitmap_height(img);
+            int draw_x = (LARG - iw) / 2, draw_y = (ALT - ih) / 2;
+
+            int lx = ev.mouse.x - draw_x;
+            int ly = ev.mouse.y - draw_y;
+
+            int clicou_V = (lx >= V_X && lx <= V_X + V_W && ly >= V_Y && ly <= V_Y + V_H);
+            int clicou_F = (lx >= F_X && lx <= F_X + F_W && ly >= F_Y && ly <= F_Y + F_H);
+
+            if (clicou_V || clicou_F)
             {
-                state = FASE3;
-                fase_atual_render = 3;
-                fase_start_time = al_get_time();
-                x = 50;
-                y = CHAO_FASE3 + OFFSET_PES;
-                vel_y = 0;
-                on_ground = true;
-                pulando = false;
-                andando = false;
-                facing_left = false;
-                limpa_obstaculos(obs, MAX_OBS);
-                spawn_forcado(obs, MAX_OBS, obs_einstein, obs_lampada, obs_maca, obs_planeta, CHAO_FASE3, OFFSET_PES);
-                proximo_spawn = al_get_time() + 1.5;
+                int resposta = clicou_V ? 1 : 0;
+                if (resposta == quiz_correta)
+                {
+                    double agora = al_get_time();
+                    fase_start_time += (agora - quiz_aberto_em); // pausa compensada
+                    limpa_obstaculos(obs, MAX_OBS);
+                    proximo_spawn = agora + 1.2;
+                    state = (fase_atual_render == 1) ? FASE1 : (fase_atual_render == 2) ? FASE2
+                                                                                        : FASE3;
+                }
+                else
+                {
+                    state = MORRENDO;
+                    morrendo_start = al_get_time();
+                    andando = false;
+                    pulando = false;
+                    on_ground = true;
+                    vel_y = 0;
+                }
             }
         }
 
-        // CONTROLES
-        else if (ev.type == ALLEGRO_EVENT_KEY_DOWN)
+        // Contextos (debounce)
+        {
+            double agora = al_get_time();
+            if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN && (agora - ultimo_clique > TEMPO_DEBOUNCE) &&
+                (state == FASE1_CTX1 || state == FASE1_CTX2 || state == FASE2_CTX1 || state == FASE2_CTX2 ||
+                 state == FASE3_CTX1 || state == FASE3_CTX2))
+            {
+                ultimo_clique = agora;
+                if (state == FASE1_CTX1)
+                    state = FASE1_CTX2;
+                else if (state == FASE1_CTX2)
+                {
+                    state = FASE1;
+                    fase_atual_render = 1;
+                    fase_start_time = al_get_time();
+                    x = 50;
+                    y = CHAO_FASE1 + OFFSET_PES;
+                    vel_y = 0;
+                    on_ground = true;
+                    pulando = false;
+                    andando = false;
+                    facing_left = false;
+                    limpa_obstaculos(obs, MAX_OBS);
+                    spawn_forcado(obs, MAX_OBS, obs_plus, obs_minus, obs_mult, obs_div, CHAO_FASE1, OFFSET_PES, OBS_LEVANTAR);
+                    proximo_spawn = al_get_time() + 1.5;
+                }
+                else if (state == FASE2_CTX1)
+                    state = FASE2_CTX2;
+                else if (state == FASE2_CTX2)
+                {
+                    state = FASE2;
+                    fase_atual_render = 2;
+                    fase_start_time = al_get_time();
+                    x = 50;
+                    y = CHAO_FASE2 + OFFSET_PES;
+                    vel_y = 0;
+                    on_ground = true;
+                    pulando = false;
+                    andando = false;
+                    facing_left = false;
+                    limpa_obstaculos(obs, MAX_OBS);
+                    spawn_forcado(obs, MAX_OBS, obs_atomo, obs_balao, obs_genetica, obs_planta, CHAO_FASE2, OFFSET_PES, OBS_LEVANTAR);
+                    proximo_spawn = al_get_time() + 1.5;
+                }
+                else if (state == FASE3_CTX1)
+                    state = FASE3_CTX2;
+                else if (state == FASE3_CTX2)
+                {
+                    state = FASE3;
+                    fase_atual_render = 3;
+                    fase_start_time = al_get_time();
+                    x = 50;
+                    y = CHAO_FASE3 + OFFSET_PES;
+                    vel_y = 0;
+                    on_ground = true;
+                    pulando = false;
+                    andando = false;
+                    facing_left = false;
+                    limpa_obstaculos(obs, MAX_OBS);
+                    spawn_forcado(obs, MAX_OBS, obs_einstein, obs_lampada, obs_maca, obs_planeta, CHAO_FASE3, OFFSET_PES, OBS_LEVANTAR);
+                    proximo_spawn = al_get_time() + 1.5;
+                }
+            }
+        }
+
+        // Controles
+        if (ev.type == ALLEGRO_EVENT_KEY_DOWN)
         {
             if (state == FASE1 || state == FASE2 || state == FASE3)
             {
@@ -339,7 +430,7 @@ int main(void)
                 case ALLEGRO_KEY_UP:
                     if (on_ground)
                     {
-                        vel_y = FORCA_PULO;
+                        vel_y = -14.0f;
                         on_ground = false;
                         pulando = true;
                     }
@@ -352,17 +443,13 @@ int main(void)
         }
         else if (ev.type == ALLEGRO_EVENT_KEY_UP)
         {
-            if (ev.keyboard.keycode == ALLEGRO_KEY_A ||
-                ev.keyboard.keycode == ALLEGRO_KEY_D ||
-                ev.keyboard.keycode == ALLEGRO_KEY_LEFT ||
-                ev.keyboard.keycode == ALLEGRO_KEY_RIGHT)
-            {
+            if (ev.keyboard.keycode == ALLEGRO_KEY_A || ev.keyboard.keycode == ALLEGRO_KEY_D ||
+                ev.keyboard.keycode == ALLEGRO_KEY_LEFT || ev.keyboard.keycode == ALLEGRO_KEY_RIGHT)
                 andando = false;
-            }
         }
 
-        // TIMER
-        else if (ev.type == ALLEGRO_EVENT_TIMER)
+        // Timer
+        if (ev.type == ALLEGRO_EVENT_TIMER)
         {
             if (state == MORRENDO)
             {
@@ -373,6 +460,10 @@ int main(void)
                 }
                 redraw = true;
             }
+            else if (state == QUIZ)
+            {
+                redraw = true;
+            }
             else if (state == FASE1 || state == FASE2 || state == FASE3)
             {
                 ALLEGRO_KEYBOARD_STATE ks;
@@ -380,18 +471,18 @@ int main(void)
                 if (andando)
                 {
                     if (al_key_down(&ks, ALLEGRO_KEY_A) || al_key_down(&ks, ALLEGRO_KEY_LEFT))
-                        x -= VELOCIDADE;
+                        x -= 4.0f;
                     if (al_key_down(&ks, ALLEGRO_KEY_D) || al_key_down(&ks, ALLEGRO_KEY_RIGHT))
-                        x += VELOCIDADE;
+                        x += 4.0f;
                 }
-
                 if (!on_ground)
                 {
-                    vel_y += GRAVIDADE;
+                    vel_y += 0.6f;
                     y += vel_y;
                 }
 
-                float chao_y = (state == FASE1) ? CHAO_FASE1 : (state == FASE2) ? CHAO_FASE2 : CHAO_FASE3;
+                float chao_y = (state == FASE1) ? CHAO_FASE1 : (state == FASE2) ? CHAO_FASE2
+                                                                                : CHAO_FASE3;
                 if (y >= chao_y + OFFSET_PES)
                 {
                     y = chao_y + OFFSET_PES;
@@ -409,16 +500,16 @@ int main(void)
                 if (now >= proximo_spawn)
                 {
                     if (state == FASE1)
-                        spawn_forcado(obs, MAX_OBS, obs_plus, obs_minus, obs_mult, obs_div, chao_y, OFFSET_PES);
+                        spawn_forcado(obs, MAX_OBS, obs_plus, obs_minus, obs_mult, obs_div, chao_y, OFFSET_PES, OBS_LEVANTAR);
                     else if (state == FASE2)
-                        spawn_forcado(obs, MAX_OBS, obs_atomo, obs_balao, obs_genetica, obs_planta, chao_y, OFFSET_PES);
+                        spawn_forcado(obs, MAX_OBS, obs_atomo, obs_balao, obs_genetica, obs_planta, chao_y, OFFSET_PES, OBS_LEVANTAR);
                     else if (state == FASE3)
-                        spawn_forcado(obs, MAX_OBS, obs_einstein, obs_lampada, obs_maca, obs_planeta, chao_y, OFFSET_PES);
-
-                    double d = delay_spawn_min + ((double)rand() / RAND_MAX) * (delay_spawn_max - delay_spawn_min);
+                        spawn_forcado(obs, MAX_OBS, obs_einstein, obs_lampada, obs_maca, obs_planeta, chao_y, OFFSET_PES, OBS_LEVANTAR);
+                    double d = 1.0 + ((double)rand() / RAND_MAX) * (2.0 - 1.0);
                     proximo_spawn = now + d;
                 }
 
+                // Player bbox
                 ALLEGRO_BITMAP *sprite_col = boneco_padrao;
                 if (pulando)
                     sprite_col = boneco_pulando;
@@ -428,15 +519,13 @@ int main(void)
                 float esc = 180.0f / (float)al_get_bitmap_height(sprite_col);
                 float player_w = (float)al_get_bitmap_width(sprite_col) * esc;
                 float player_h = 180.0f;
-                float player_x = x;
-                float player_y = y - player_h;
+                float player_x = x, player_y = y - player_h;
 
                 for (int i = 0; i < MAX_OBS; i++)
                 {
                     if (!obs[i].ativo)
                         continue;
 
-                    // avança obstáculo
                     obs[i].x -= obs[i].vx;
                     if (obs[i].x + obs[i].w < 0)
                     {
@@ -444,11 +533,8 @@ int main(void)
                         continue;
                     }
 
-                    // insets
-                    const float PLAYER_HIT_INSET_X = 0.18f;
-                    const float PLAYER_HIT_INSET_Y = 0.35f;
-                    const float OBS_HIT_INSET_X = 0.15f;
-                    const float OBS_HIT_INSET_Y = 0.25f;
+                    const float PLAYER_HIT_INSET_X = 0.18f, PLAYER_HIT_INSET_Y = 0.35f;
+                    const float OBS_HIT_INSET_X = 0.15f, OBS_HIT_INSET_Y = 0.25f;
                     const float MARGEM_TOPO = 6.0f;
 
                     float p_x = player_x + player_w * PLAYER_HIT_INSET_X;
@@ -466,13 +552,31 @@ int main(void)
 
                     if (overlap && pe_abaixo_do_topo)
                     {
-                        // morreu
-                        state = MORRENDO;
-                        morrendo_start = al_get_time();
+                        int idx = rand() % 4;
+                        quiz_indice = idx;
+                        if (state == FASE1)
+                        {
+                            quiz_correta = quiz1_resp[idx];
+                            fase_atual_render = 1;
+                        }
+                        else if (state == FASE2)
+                        {
+                            quiz_correta = quiz2_resp[idx];
+                            fase_atual_render = 2;
+                        }
+                        else
+                        {
+                            quiz_correta = quiz3_resp[idx];
+                            fase_atual_render = 3;
+                        }
+                        quiz_aberto_em = al_get_time();
+                        state = QUIZ;
+                        obs[i].ativo = 0;
                         andando = false;
                         pulando = false;
                         on_ground = true;
                         vel_y = 0;
+                        quiz_hover_v = quiz_hover_f = 0;
                         break;
                     }
                 }
@@ -495,7 +599,6 @@ int main(void)
                     {
                         state = MENU_FINAL;
                     }
-
                     andando = false;
                     pulando = false;
                     on_ground = true;
@@ -503,7 +606,6 @@ int main(void)
                     limpa_obstaculos(obs, MAX_OBS);
                     ultimo_clique = al_get_time();
                 }
-
                 redraw = true;
             }
             else
@@ -512,7 +614,7 @@ int main(void)
             }
         }
 
-        // ===== DESENHO =====
+        // Desenho
         if (redraw && al_is_event_queue_empty(event_queue))
         {
             redraw = false;
@@ -539,21 +641,20 @@ int main(void)
             else
             {
                 ALLEGRO_BITMAP *fundo =
-                    (state == FASE1 || (state == MORRENDO && fase_atual_render == 1)) ? fase1_img : (state == FASE2 || (state == MORRENDO && fase_atual_render == 2)) ? fase2_img : fase3_img;
+                    (state == FASE1 || (state == MORRENDO && fase_atual_render == 1) || (state == QUIZ && fase_atual_render == 1)) ? fase1_img : (state == FASE2 || (state == MORRENDO && fase_atual_render == 2) || (state == QUIZ && fase_atual_render == 2)) ? fase2_img
+                                                                                                                                                                                                                                                                : fase3_img;
                 al_draw_bitmap(fundo, 0, 0, 0);
 
-                // Obstáculos nas fases
                 if (state == FASE1 || state == FASE2 || state == FASE3)
-                {
                     for (int i = 0; i < MAX_OBS; i++)
                         if (obs[i].ativo)
                             desenha_obstaculo(&obs[i]);
-                }
 
-                // Boneco
                 ALLEGRO_BITMAP *sprite = boneco_padrao;
                 if (state == MORRENDO)
                     sprite = boneco_morrendo;
+                else if (state == QUIZ)
+                    sprite = boneco_padrao;
                 else if (pulando)
                     sprite = boneco_pulando;
                 else if (andando)
@@ -563,15 +664,41 @@ int main(void)
                 float largura = (float)al_get_bitmap_width(sprite) * escala;
                 float altura = 180.0f;
                 int flags = facing_left ? ALLEGRO_FLIP_HORIZONTAL : 0;
+                al_draw_scaled_bitmap(sprite, 0, 0,
+                                      (float)al_get_bitmap_width(sprite), (float)al_get_bitmap_height(sprite),
+                                      x, y - altura, largura, altura, flags);
 
-                al_draw_scaled_bitmap(sprite, 0, 0, (float)al_get_bitmap_width(sprite), (float)al_get_bitmap_height(sprite), x, y - altura, largura, altura, flags);
+                if (state == QUIZ)
+                {
+                    ALLEGRO_BITMAP *img =
+                        (fase_atual_render == 1) ? quiz1[quiz_indice] : (fase_atual_render == 2) ? quiz2[quiz_indice]
+                                                                                                 : quiz3[quiz_indice];
+                    int iw = al_get_bitmap_width(img), ih = al_get_bitmap_height(img);
+                    int draw_x = (LARG - iw) / 2, draw_y = (ALT - ih) / 2;
+
+                    // fundo escurecido
+                    al_draw_filled_rectangle(0, 0, LARG, ALT, al_map_rgba(0, 0, 0, 120));
+                    // imagem do quiz
+                    al_draw_bitmap(img, draw_x, draw_y, 0);
+
+                    // highlight hover
+                    if (quiz_hover_v)
+                    {
+                        al_draw_filled_rectangle(draw_x + V_X, draw_y + V_Y, draw_x + V_X + V_W, draw_y + V_Y + V_H, al_map_rgba(0, 255, 0, 40));
+                        al_draw_rectangle(draw_x + V_X, draw_y + V_Y, draw_x + V_X + V_W, draw_y + V_Y + V_H, al_map_rgb(0, 255, 0), 3.0f);
+                    }
+                    if (quiz_hover_f)
+                    {
+                        al_draw_filled_rectangle(draw_x + F_X, draw_y + F_Y, draw_x + F_X + F_W, draw_y + F_Y + F_H, al_map_rgba(255, 0, 0, 40));
+                        al_draw_rectangle(draw_x + F_X, draw_y + F_Y, draw_x + F_X + F_W, draw_y + F_Y + F_H, al_map_rgb(255, 0, 0), 3.0f);
+                    }
+                }
             }
-
             al_flip_display();
         }
     }
 
-    // LIMPEZA
+    // Limpeza
     al_destroy_bitmap(menu_img);
     al_destroy_bitmap(instr_img);
     al_destroy_bitmap(menu_final_img);
@@ -606,6 +733,12 @@ int main(void)
     al_destroy_bitmap(obs_lampada);
     al_destroy_bitmap(obs_maca);
     al_destroy_bitmap(obs_planeta);
+    for (int i = 0; i < 4; i++)
+        al_destroy_bitmap(quiz1[i]);
+    for (int i = 0; i < 4; i++)
+        al_destroy_bitmap(quiz2[i]);
+    for (int i = 0; i < 4; i++)
+        al_destroy_bitmap(quiz3[i]);
 
     al_destroy_timer(timer);
     al_destroy_event_queue(event_queue);
