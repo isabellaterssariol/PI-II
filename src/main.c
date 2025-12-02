@@ -29,12 +29,13 @@ typedef enum
 typedef struct
 {
     float x, y, w, h;
-    float vx;
+    float vx, vy;
     int ativo;
     ALLEGRO_BITMAP *bmp;
 } Obstaculo;
 
 #define MAX_OBS 6
+#define VIDAS_MAX 3
 
 static inline int aabb_overlap(float x1, float y1, float w1, float h1, float x2, float y2, float w2, float h2)
 {
@@ -47,7 +48,7 @@ void limpa_obstaculos(Obstaculo obs[], int max)
         obs[i].ativo = 0;
 }
 
-void cria_obstaculo(Obstaculo *o, ALLEGRO_BITMAP *b1, ALLEGRO_BITMAP *b2, ALLEGRO_BITMAP *b3, ALLEGRO_BITMAP *b4, float CHAO_Y, float OFFSET_PES, float levantar_px)
+void cria_obstaculo(Obstaculo *o, ALLEGRO_BITMAP *b1, ALLEGRO_BITMAP *b2, ALLEGRO_BITMAP *b3, ALLEGRO_BITMAP *b4, float CHAO_Y, float OFFSET_PES, float levantar_px, float largura_tela, float dificuldade)
 {
     int tipo = rand() % 4;
     ALLEGRO_BITMAP *bmp = (tipo == 0 ? b1 : tipo == 1 ? b2 : tipo == 2   ? b3 : b4);
@@ -61,23 +62,66 @@ void cria_obstaculo(Obstaculo *o, ALLEGRO_BITMAP *b1, ALLEGRO_BITMAP *b2, ALLEGR
     o->w = (srcw > 0.0f) ? srcw * esc : 100.0f;
     o->h = alvo_h;
 
-    o->x = 1536.0f + 10.0f;
-    o->y = (CHAO_Y + OFFSET_PES) - o->h - 15 - levantar_px;
-    o->vx = 5.0f + (float)(rand() % 25) / 10.0f;
+    float ground_y = (CHAO_Y + OFFSET_PES) - o->h - 15.0f - levantar_px;
+    float velocidade = 5.0f + (float)(rand() % 25) / 10.0f;
+    velocidade *= dificuldade;
+    if (velocidade > 18.0f)
+        velocidade = 18.0f;
+    o->vx = 0.0f;
+    o->vy = 0.0f;
+
+    int direcao = rand() % 3;
+    if (direcao == 0)
+    {
+        o->x = largura_tela + o->w + 10.0f;
+        o->y = ground_y;
+        o->vx = -velocidade;
+    }
+    else if (direcao == 1)
+    {
+        o->x = -o->w - 10.0f;
+        o->y = ground_y;
+        o->vx = velocidade;
+    }
+    else
+    {
+        float pos_min = 50.0f;
+        float pos_max = largura_tela - o->w - 50.0f;
+        if (pos_max <= pos_min)
+        {
+            pos_min = 0.0f;
+            pos_max = largura_tela - o->w;
+        }
+        if (pos_max < 0.0f)
+            pos_max = 0.0f;
+        float faixa = pos_max - pos_min;
+        if (faixa < 1.0f)
+            faixa = 1.0f;
+        float r = (float)rand() / (float)RAND_MAX;
+        o->x = pos_min + r * faixa;
+        if (o->x > largura_tela - o->w)
+            o->x = largura_tela - o->w;
+        if (o->x < 0.0f)
+            o->x = 0.0f;
+        o->y = -o->h - 20.0f;
+        float drift = ((float)rand() / (float)RAND_MAX - 0.5f) * velocidade;
+        o->vx = drift * 0.5f;
+        o->vy = velocidade * 0.9f;
+    }
     o->ativo = 1;
 }
 
-void spawn_forcado(Obstaculo obs[], int max, ALLEGRO_BITMAP *b1, ALLEGRO_BITMAP *b2, ALLEGRO_BITMAP *b3, ALLEGRO_BITMAP *b4, float CHAO_Y, float OFFSET_PES, float levantar_px)
+void spawn_forcado(Obstaculo obs[], int max, ALLEGRO_BITMAP *b1, ALLEGRO_BITMAP *b2, ALLEGRO_BITMAP *b3, ALLEGRO_BITMAP *b4, float CHAO_Y, float OFFSET_PES, float levantar_px, float largura_tela, float dificuldade)
 {
     for (int i = 0; i < max; i++)
     {
         if (!obs[i].ativo)
         {
-            cria_obstaculo(&obs[i], b1, b2, b3, b4, CHAO_Y, OFFSET_PES, levantar_px);
+            cria_obstaculo(&obs[i], b1, b2, b3, b4, CHAO_Y, OFFSET_PES, levantar_px, largura_tela, dificuldade);
             return;
         }
     }
-    cria_obstaculo(&obs[0], b1, b2, b3, b4, CHAO_Y, OFFSET_PES, levantar_px);
+    cria_obstaculo(&obs[0], b1, b2, b3, b4, CHAO_Y, OFFSET_PES, levantar_px, largura_tela, dificuldade);
 }
 
 void desenha_obstaculo(const Obstaculo *o)
@@ -89,6 +133,48 @@ void desenha_obstaculo(const Obstaculo *o)
     if (ow <= 0 || oh <= 0)
         return;
     al_draw_scaled_bitmap(o->bmp, 0, 0, ow, oh, o->x, o->y, o->w, o->h, 0);
+}
+
+static void desenha_coracao_shape(float cx, float cy, float raio, ALLEGRO_COLOR cor)
+{
+    float top_y = cy - raio * 0.6f;
+    float offset = raio * 0.9f;
+    float base_half = raio * 1.6f;
+    float tip_y = cy + raio * 1.4f;
+    al_draw_filled_circle(cx - offset, top_y, raio, cor);
+    al_draw_filled_circle(cx + offset, top_y, raio, cor);
+    al_draw_filled_triangle(cx - base_half, top_y,
+                            cx + base_half, top_y,
+                            cx, tip_y, cor);
+}
+
+static void desenha_coracoes(int vidas)
+{
+    const float start_x = 110.0f;
+    const float start_y = 120.0f;
+    const float raio = 18.0f;
+    const float spacing = raio * 4.0f;
+    for (int i = 0; i < VIDAS_MAX; i++)
+    {
+        float cx = start_x + i * spacing;
+        ALLEGRO_COLOR cor = (i < vidas) ? al_map_rgb(235, 64, 82) : al_map_rgb(90, 90, 90);
+        desenha_coracao_shape(cx, start_y, raio, cor);
+    }
+}
+
+static float calcula_dificuldade(int vidas_restantes, double tempo_fase, double distancia_fase)
+{
+    float vidas_factor = 1.0f + 0.3f * (float)(VIDAS_MAX - vidas_restantes);
+    float tempo_factor = 1.0f + (float)(tempo_fase / 8.0f);
+    if (tempo_factor > 2.0f)
+        tempo_factor = 2.0f;
+    float dist_factor = 1.0f + (float)(distancia_fase / 900.0f);
+    if (dist_factor > 2.0f)
+        dist_factor = 2.0f;
+    float dificuldade = vidas_factor * tempo_factor * dist_factor;
+    if (dificuldade > 3.5f)
+        dificuldade = 3.5f;
+    return dificuldade;
 }
 
 int main(void)
@@ -213,18 +299,21 @@ int main(void)
 
     const float CHAO_FASE1 = 770.0f, CHAO_FASE2 = 820.0f, CHAO_FASE3 = 730.0f, OFFSET_PES = 5.0f;
     const float OBS_LEVANTAR = 8.0f;
+    const float POS_META = 1350.0f;
 
     int fase_atual_render = 1;
 
     double fase_start_time = 0, ultimo_clique = 0;
-    const double TEMPO_DEBOUNCE = 0.3, TEMPO_FASE = 10.0;
+    const double TEMPO_DEBOUNCE = 0.3;
 
     Obstaculo obs[MAX_OBS] = {0};
     double proximo_spawn = 0.0;
-    const double delay_spawn_min = 1.0, delay_spawn_max = 2.0;
 
     double morrendo_start = 0.0;
     const double TEMPO_MORRENDO = 3.0;
+    int vidas = VIDAS_MAX;
+    double distancia_fase = 0.0;
+    float ultimo_x = x;
 
     // QUIZ state + highlight
     int quiz_indice = 0, quiz_correta = 0; // 0=F,1=V
@@ -250,6 +339,7 @@ int main(void)
             {
                 state = FASE1_CTX1;
                 ultimo_clique = al_get_time();
+                vidas = VIDAS_MAX;
             }
             else if (mx > 510 && mx < 1025 && my > 556 && my < 651)
             {
@@ -273,6 +363,7 @@ int main(void)
                 pulando = false;
                 on_ground = true;
                 vel_y = 0;
+                vidas = VIDAS_MAX;
             }
         }
 
@@ -285,7 +376,10 @@ int main(void)
         {
             if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN ||
                 (ev.type == ALLEGRO_EVENT_KEY_DOWN && ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE))
+            {
                 state = MENU;
+                vidas = VIDAS_MAX;
+            }
         }
 
         // QUIZ: mover mouse para highlight
@@ -323,23 +417,39 @@ int main(void)
             if (clicou_V || clicou_F)
             {
                 int resposta = clicou_V ? 1 : 0;
+                double agora = al_get_time();
+                fase_start_time += (agora - quiz_aberto_em); // pausa compensada
+                double tempo_fase_quiz = agora - fase_start_time;
                 if (resposta == quiz_correta)
                 {
-                    double agora = al_get_time();
-                    fase_start_time += (agora - quiz_aberto_em); // pausa compensada
                     limpa_obstaculos(obs, MAX_OBS);
-                    proximo_spawn = agora + 1.2;
+                    float dificuldade_quiz = calcula_dificuldade(vidas, tempo_fase_quiz, distancia_fase);
+                    proximo_spawn = agora + (1.2 / dificuldade_quiz);
                     state = (fase_atual_render == 1) ? FASE1 : (fase_atual_render == 2) ? FASE2
                                                                                         : FASE3;
+                    ultimo_x = x;
                 }
                 else
                 {
-                    state = MORRENDO;
-                    morrendo_start = al_get_time();
-                    andando = false;
-                    pulando = false;
-                    on_ground = true;
-                    vel_y = 0;
+                    vidas--;
+                    if (vidas <= 0)
+                    {
+                        state = MORRENDO;
+                        morrendo_start = agora;
+                        andando = false;
+                        pulando = false;
+                        on_ground = true;
+                        vel_y = 0;
+                    }
+                    else
+                    {
+                        limpa_obstaculos(obs, MAX_OBS);
+                        float dificuldade_quiz = calcula_dificuldade(vidas, tempo_fase_quiz, distancia_fase);
+                        proximo_spawn = agora + (1.2 / dificuldade_quiz);
+                        state = (fase_atual_render == 1) ? FASE1 : (fase_atual_render == 2) ? FASE2
+                                                                                            : FASE3;
+                        ultimo_x = x;
+                    }
                 }
             }
         }
@@ -359,6 +469,7 @@ int main(void)
                     state = FASE1;
                     fase_atual_render = 1;
                     fase_start_time = al_get_time();
+                    vidas = VIDAS_MAX;
                     x = 50;
                     y = CHAO_FASE1 + OFFSET_PES;
                     vel_y = 0;
@@ -366,9 +477,12 @@ int main(void)
                     pulando = false;
                     andando = false;
                     facing_left = false;
+                    distancia_fase = 0.0;
+                    ultimo_x = x;
                     limpa_obstaculos(obs, MAX_OBS);
-                    spawn_forcado(obs, MAX_OBS, obs_plus, obs_minus, obs_mult, obs_div, CHAO_FASE1, OFFSET_PES, OBS_LEVANTAR);
-                    proximo_spawn = al_get_time() + 1.5;
+                    float dificuldade_inicial = calcula_dificuldade(vidas, 0.0, distancia_fase);
+                    spawn_forcado(obs, MAX_OBS, obs_plus, obs_minus, obs_mult, obs_div, CHAO_FASE1, OFFSET_PES, OBS_LEVANTAR, LARG, dificuldade_inicial);
+                    proximo_spawn = al_get_time() + (1.2 / dificuldade_inicial);
                 }
                 else if (state == FASE2_CTX1)
                     state = FASE2_CTX2;
@@ -384,9 +498,12 @@ int main(void)
                     pulando = false;
                     andando = false;
                     facing_left = false;
+                    distancia_fase = 0.0;
+                    ultimo_x = x;
                     limpa_obstaculos(obs, MAX_OBS);
-                    spawn_forcado(obs, MAX_OBS, obs_atomo, obs_balao, obs_genetica, obs_planta, CHAO_FASE2, OFFSET_PES, OBS_LEVANTAR);
-                    proximo_spawn = al_get_time() + 1.5;
+                    float dificuldade_fase2 = calcula_dificuldade(vidas, 0.0, distancia_fase);
+                    spawn_forcado(obs, MAX_OBS, obs_atomo, obs_balao, obs_genetica, obs_planta, CHAO_FASE2, OFFSET_PES, OBS_LEVANTAR, LARG, dificuldade_fase2);
+                    proximo_spawn = al_get_time() + (1.2 / dificuldade_fase2);
                 }
                 else if (state == FASE3_CTX1)
                     state = FASE3_CTX2;
@@ -402,9 +519,12 @@ int main(void)
                     pulando = false;
                     andando = false;
                     facing_left = false;
+                    distancia_fase = 0.0;
+                    ultimo_x = x;
                     limpa_obstaculos(obs, MAX_OBS);
-                    spawn_forcado(obs, MAX_OBS, obs_einstein, obs_lampada, obs_maca, obs_planeta, CHAO_FASE3, OFFSET_PES, OBS_LEVANTAR);
-                    proximo_spawn = al_get_time() + 1.5;
+                    float dificuldade_fase3 = calcula_dificuldade(vidas, 0.0, distancia_fase);
+                    spawn_forcado(obs, MAX_OBS, obs_einstein, obs_lampada, obs_maca, obs_planeta, CHAO_FASE3, OFFSET_PES, OBS_LEVANTAR, LARG, dificuldade_fase3);
+                    proximo_spawn = al_get_time() + (1.2 / dificuldade_fase3);
                 }
             }
         }
@@ -437,6 +557,7 @@ int main(void)
                     break;
                 case ALLEGRO_KEY_ESCAPE:
                     state = MENU;
+                    vidas = VIDAS_MAX;
                     break;
                 }
             }
@@ -457,6 +578,7 @@ int main(void)
                 {
                     state = MENU;
                     limpa_obstaculos(obs, MAX_OBS);
+                    vidas = VIDAS_MAX;
                 }
                 redraw = true;
             }
@@ -496,17 +618,25 @@ int main(void)
                 if (x > 1400)
                     x = 1400;
 
+                double desloc = x - ultimo_x;
+                if (desloc < 0)
+                    desloc = -desloc;
+                distancia_fase += desloc;
+                ultimo_x = x;
+
                 double now = al_get_time();
+                double tempo_fase = now - fase_start_time;
+                float dificuldade_atual = calcula_dificuldade(vidas, tempo_fase, distancia_fase);
                 if (now >= proximo_spawn)
                 {
                     if (state == FASE1)
-                        spawn_forcado(obs, MAX_OBS, obs_plus, obs_minus, obs_mult, obs_div, chao_y, OFFSET_PES, OBS_LEVANTAR);
+                        spawn_forcado(obs, MAX_OBS, obs_plus, obs_minus, obs_mult, obs_div, chao_y, OFFSET_PES, OBS_LEVANTAR, LARG, dificuldade_atual);
                     else if (state == FASE2)
-                        spawn_forcado(obs, MAX_OBS, obs_atomo, obs_balao, obs_genetica, obs_planta, chao_y, OFFSET_PES, OBS_LEVANTAR);
+                        spawn_forcado(obs, MAX_OBS, obs_atomo, obs_balao, obs_genetica, obs_planta, chao_y, OFFSET_PES, OBS_LEVANTAR, LARG, dificuldade_atual);
                     else if (state == FASE3)
-                        spawn_forcado(obs, MAX_OBS, obs_einstein, obs_lampada, obs_maca, obs_planeta, chao_y, OFFSET_PES, OBS_LEVANTAR);
+                        spawn_forcado(obs, MAX_OBS, obs_einstein, obs_lampada, obs_maca, obs_planeta, chao_y, OFFSET_PES, OBS_LEVANTAR, LARG, dificuldade_atual);
                     double d = 1.0 + ((double)rand() / RAND_MAX) * (2.0 - 1.0);
-                    proximo_spawn = now + d;
+                    proximo_spawn = now + (d / dificuldade_atual);
                 }
 
                 // Player bbox
@@ -526,8 +656,12 @@ int main(void)
                     if (!obs[i].ativo)
                         continue;
 
-                    obs[i].x -= obs[i].vx;
-                    if (obs[i].x + obs[i].w < 0)
+                    obs[i].x += obs[i].vx;
+                    obs[i].y += obs[i].vy;
+
+                    const float OFFSCREEN_MARGIN = 120.0f;
+                    if (obs[i].x > LARG + OFFSCREEN_MARGIN || obs[i].x + obs[i].w < -OFFSCREEN_MARGIN ||
+                        obs[i].y > ALT + OFFSCREEN_MARGIN || obs[i].y + obs[i].h < -OFFSCREEN_MARGIN)
                     {
                         obs[i].ativo = 0;
                         continue;
@@ -582,8 +716,7 @@ int main(void)
                 }
 
                 // Avanço automático após 10s
-                double elapsed = al_get_time() - fase_start_time;
-                if (elapsed >= TEMPO_FASE)
+                if (x >= POS_META)
                 {
                     if (state == FASE1)
                     {
@@ -603,6 +736,8 @@ int main(void)
                     pulando = false;
                     on_ground = true;
                     vel_y = 0;
+                    distancia_fase = 0.0;
+                    ultimo_x = x;
                     limpa_obstaculos(obs, MAX_OBS);
                     ultimo_clique = al_get_time();
                 }
@@ -693,6 +828,9 @@ int main(void)
                         al_draw_rectangle(draw_x + F_X, draw_y + F_Y, draw_x + F_X + F_W, draw_y + F_Y + F_H, al_map_rgb(255, 0, 0), 3.0f);
                     }
                 }
+
+                if (state == FASE1 || state == FASE2 || state == FASE3 || state == QUIZ)
+                    desenha_coracoes(vidas);
             }
             al_flip_display();
         }
